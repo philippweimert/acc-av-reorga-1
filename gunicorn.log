@@ -1,4 +1,0 @@
-[2025-08-26 21:29:00 +0000] [3610] [INFO] Starting gunicorn 22.0.0
-[2025-08-26 21:29:00 +0000] [3610] [INFO] Listening at: http://127.0.0.1:8000 (3610)
-[2025-08-26 21:29:00 +0000] [3610] [INFO] Using worker: uvicorn.workers.UvicornWorker
-[2025-08-26 21:29:00 +0000] [3742] [INFO] Booting worker with pid: 3742

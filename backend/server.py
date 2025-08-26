@@ -1,4 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -91,18 +92,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# Custom StaticFiles class to handle SPA routing
-class SPAStaticFiles(StaticFiles):
-    async def get_response(self, path: str, scope):
-        try:
-            return await super().get_response(path, scope)
-        except HTTPException as ex:
-            if ex.status_code == 404:
-                # If the file is not found, serve index.html for SPA routing
-                return await super().get_response("index.html", scope)
-            raise ex
+# This will serve the static assets (e.g., CSS, JS) from the build directory
+static_files_dir = ROOT_DIR.parent / "frontend" / "build"
+app.mount("/static", StaticFiles(directory=static_files_dir / "static"), name="static")
 
-# Mount the frontend
-# This should be after the API router to ensure API calls are not caught by the SPA handler
-build_dir = ROOT_DIR.parent / "frontend" / "build"
-app.mount("/", SPAStaticFiles(directory=build_dir, html=True), name="spa-frontend")
+# This is the catch-all route that serves the React app's index.html file
+# for any non-API, non-static file request.
+# It must be placed after all other API routes and static file mounts.
+@app.get("/{full_path:path}")
+async def serve_react_app(full_path: str):
+    return FileResponse(static_files_dir / "index.html")
