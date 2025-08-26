@@ -8,20 +8,7 @@ import requests
 import json
 import sys
 
-# Get backend URL from frontend .env file
-def get_backend_url():
-    try:
-        with open('/app/frontend/.env', 'r') as f:
-            for line in f:
-                if line.startswith('REACT_APP_BACKEND_URL='):
-                    base_url = line.split('=')[1].strip()
-                    return f"{base_url}/api"
-        return "https://bavportal.preview.emergentagent.com/api"
-    except Exception as e:
-        print(f"Error reading frontend .env: {e}")
-        return "https://bavportal.preview.emergentagent.com/api"
-
-BASE_URL = get_backend_url()
+BASE_URL = "http://127.0.0.1:8000/api"
 print(f"Testing contact form at: {BASE_URL}")
 
 def test_contact_form():

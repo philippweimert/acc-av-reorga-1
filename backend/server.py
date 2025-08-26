@@ -1,43 +1,24 @@
 from fastapi import FastAPI, APIRouter, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
+from fastapi.staticfiles import StaticFiles
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, EmailStr
-from typing import List, Optional
-import uuid
+from pydantic import BaseModel, EmailStr
+from typing import Optional
 from datetime import datetime
-import aiosmtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
-
-# Create the main app without a prefix
+# Create the main app
 app = FastAPI()
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
-
 # Define Models
-class StatusCheck(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-
-class StatusCheckCreate(BaseModel):
-    client_name: str
-
 class ContactForm(BaseModel):
     name: str
     email: EmailStr
@@ -45,16 +26,10 @@ class ContactForm(BaseModel):
     phone: Optional[str] = None
     message: str
 
-# Email configuration
-async def send_email(contact_data: ContactForm):
-    """Send contact form data via email"""
+# Email processing logic
+async def process_contact_form(contact_data: ContactForm):
+    """Processes contact form data"""
     try:
-        # Create message
-        msg = MIMEMultipart()
-        msg['From'] = "noreply@acencia.de"
-        msg['To'] = "philipp.weimert@acencia.de"
-        msg['Subject'] = f"Neue Kontaktanfrage von {contact_data.name}"
-
         # Email body
         body = f"""
 Neue Kontaktanfrage über die Website:
@@ -70,54 +45,26 @@ Nachricht:
 ---
 Gesendet am: {datetime.now().strftime('%d.%m.%Y um %H:%M:%S')}
 """
-
-        msg.attach(MIMEText(body, 'plain', 'utf-8'))
-
-        # For now, we'll use a simple SMTP setup that would work with most providers
-        # In production, you would configure this with your actual SMTP settings
+        # Since there's no DB and no SMTP configured, we just log it.
+        logger.info("New contact form submission:")
+        logger.info(body)
         
-        # Since we don't have SMTP credentials configured, we'll save to database instead
-        # and log the email content
-        
-        # Save contact form submission to database
-        contact_dict = contact_data.dict()
-        contact_dict['id'] = str(uuid.uuid4())
-        contact_dict['timestamp'] = datetime.utcnow()
-        contact_dict['status'] = 'sent'
-        
-        await db.contact_submissions.insert_one(contact_dict)
-        
-        # Log the email content for now (in production, this would actually send)
-        logger.info(f"Contact form submission: {body}")
-        
-        return {"status": "success", "message": "Nachricht erfolgreich gesendet"}
+        return {"status": "success", "message": "Nachricht erfolgreich verarbeitet"}
         
     except Exception as e:
-        logger.error(f"Failed to send email: {str(e)}")
-        raise HTTPException(status_code=500, detail="Fehler beim Senden der Nachricht")
+        logger.error(f"Failed to process contact form: {str(e)}")
+        raise HTTPException(status_code=500, detail="Fehler bei der Verarbeitung der Nachricht")
 
-# Add your routes to the router instead of directly to app
+# API routes
 @api_router.get("/")
 async def root():
-    return {"message": "Hello World"}
-
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.dict()
-    status_obj = StatusCheck(**status_dict)
-    _ = await db.status_checks.insert_one(status_obj.dict())
-    return status_obj
-
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    status_checks = await db.status_checks.find().to_list(1000)
-    return [StatusCheck(**status_check) for status_check in status_checks]
+    return {"message": "Hello from Acencia API"}
 
 @api_router.post("/contact")
 async def submit_contact_form(contact_data: ContactForm):
     """Handle contact form submission"""
     try:
-        result = await send_email(contact_data)
+        result = await process_contact_form(contact_data)
         return result
     except HTTPException as e:
         raise e
@@ -143,6 +90,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
+
+# Custom StaticFiles class to handle SPA routing
+class SPAStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except HTTPException as ex:
+            if ex.status_code == 404:
+                # If the file is not found, serve index.html for SPA routing
+                return await super().get_response("index.html", scope)
+            raise ex
+
+# Mount the frontend
+# This should be after the API router to ensure API calls are not caught by the SPA handler
+build_dir = ROOT_DIR.parent / "frontend" / "build"
+app.mount("/", SPAStaticFiles(directory=build_dir, html=True), name="spa-frontend")

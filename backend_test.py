@@ -10,20 +10,7 @@ import sys
 from datetime import datetime
 import uuid
 
-# Get backend URL from frontend .env file
-def get_backend_url():
-    try:
-        with open('/app/frontend/.env', 'r') as f:
-            for line in f:
-                if line.startswith('REACT_APP_BACKEND_URL='):
-                    base_url = line.split('=')[1].strip()
-                    return f"{base_url}/api"
-        return "https://bavportal.preview.emergentagent.com/api"
-    except Exception as e:
-        print(f"Error reading frontend .env: {e}")
-        return "https://bavportal.preview.emergentagent.com/api"
-
-BASE_URL = get_backend_url()
+BASE_URL = "http://127.0.0.1:8000/api"
 print(f"Testing backend API at: {BASE_URL}")
 
 def test_root_endpoint():
@@ -36,7 +23,7 @@ def test_root_endpoint():
         
         if response.status_code == 200:
             data = response.json()
-            if data.get("message") == "Hello World":
+            if data.get("message") == "Hello from Acencia API":
                 print("✅ Root endpoint working correctly")
                 return True
             else:
@@ -51,86 +38,6 @@ def test_root_endpoint():
         return False
     except Exception as e:
         print(f"❌ Root endpoint test failed: {e}")
-        return False
-
-def test_create_status_check():
-    """Test POST /api/status endpoint"""
-    print("\n=== Testing Create Status Check ===")
-    try:
-        test_data = {
-            "client_name": "Mustermann GmbH"
-        }
-        
-        response = requests.post(
-            f"{BASE_URL}/status", 
-            json=test_data,
-            headers={"Content-Type": "application/json"},
-            timeout=10
-        )
-        
-        print(f"Status Code: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            if (data.get("client_name") == "Mustermann GmbH" and 
-                "id" in data and 
-                "timestamp" in data):
-                print("✅ Create status check working correctly")
-                return True, data.get("id")
-            else:
-                print("❌ Create status check returned invalid data structure")
-                return False, None
-        else:
-            print(f"❌ Create status check failed with status {response.status_code}")
-            return False, None
-            
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Create status check request failed: {e}")
-        return False, None
-    except Exception as e:
-        print(f"❌ Create status check test failed: {e}")
-        return False, None
-
-def test_get_status_checks():
-    """Test GET /api/status endpoint"""
-    print("\n=== Testing Get Status Checks ===")
-    try:
-        response = requests.get(f"{BASE_URL}/status", timeout=10)
-        print(f"Status Code: {response.status_code}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"Number of status checks returned: {len(data)}")
-            
-            if isinstance(data, list):
-                if len(data) > 0:
-                    # Check structure of first item
-                    first_item = data[0]
-                    if ("id" in first_item and 
-                        "client_name" in first_item and 
-                        "timestamp" in first_item):
-                        print("✅ Get status checks working correctly")
-                        print(f"Sample record: {first_item}")
-                        return True
-                    else:
-                        print("❌ Get status checks returned invalid data structure")
-                        return False
-                else:
-                    print("✅ Get status checks working correctly (empty list)")
-                    return True
-            else:
-                print("❌ Get status checks should return a list")
-                return False
-        else:
-            print(f"❌ Get status checks failed with status {response.status_code}")
-            return False
-            
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Get status checks request failed: {e}")
-        return False
-    except Exception as e:
-        print(f"❌ Get status checks test failed: {e}")
         return False
 
 def test_cors_headers():
@@ -175,14 +82,7 @@ def run_all_tests():
     # Test 1: Root endpoint
     results.append(("Root Endpoint", test_root_endpoint()))
     
-    # Test 2: Create status check
-    create_result, created_id = test_create_status_check()
-    results.append(("Create Status Check", create_result))
-    
-    # Test 3: Get status checks
-    results.append(("Get Status Checks", test_get_status_checks()))
-    
-    # Test 4: CORS headers
+    # Test 2: CORS headers
     results.append(("CORS Configuration", test_cors_headers()))
     
     # Summary
