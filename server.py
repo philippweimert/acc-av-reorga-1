@@ -76,14 +76,6 @@ async def submit_contact_form(contact_data: ContactForm):
 # Include the router in the main app
 app.include_router(api_router)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -93,12 +85,17 @@ logger = logging.getLogger(__name__)
 
 
 # This will serve the static assets (e.g., CSS, JS) from the build directory
-static_files_dir = ROOT_DIR.parent / "frontend" / "build"
-app.mount("/static", StaticFiles(directory=static_files_dir / "static"), name="static")
+static_files_dir = ROOT_DIR / "build"
+app.mount("/assets", StaticFiles(directory=static_files_dir / "assets"), name="assets")
 
 # This is the catch-all route that serves the React app's index.html file
 # for any non-API, non-static file request.
 # It must be placed after all other API routes and static file mounts.
 @app.get("/{full_path:path}")
 async def serve_react_app(full_path: str):
+    # Check if the file exists in the build folder
+    file_path = static_files_dir / full_path
+    if file_path.is_file():
+        return FileResponse(file_path)
+    # Otherwise, serve the main index.html for client-side routing
     return FileResponse(static_files_dir / "index.html")
